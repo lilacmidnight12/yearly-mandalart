@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 Mandalat Poster</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- PDF 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- React & Babel -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        .font-serif-title { font-family: 'Playfair Display', serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Save, Trash2, RotateCcw, Zap, Star, MousePointer2, ScanLine, LayoutTemplate, Download } from 'lucide-react';
+
+        // --- 컬러 팔레트 ---
+        const posterColors = [
+            { bg: 'bg-[#FF0080]', text: 'text-white' },
+            { bg: 'bg-[#FF4D00]', text: 'text-white' },
+            { bg: 'bg-[#FFD600]', text: 'text-black' },
+            { bg: 'bg-[#00FF94]', text: 'text-black' },
+            { bg: 'bg-black',     text: 'text-white' },
+            { bg: 'bg-[#0038FF]', text: 'text-white' },
+            { bg: 'bg-[#7000FF]', text: 'text-white' },
+            { bg: 'bg-[#FF99CC]', text: 'text-[#FF0080]' },
+            { bg: 'bg-[#1a1a1a]', text: 'text-white' },
+        ];
+
+        // --- Cell 컴포넌트 ---
+        const Cell = ({ blockIdx, cellIdx, value, isCenterOfBlock, isMainCenter, updateGrid, isViewMode }) => {
+            const isReadOnly = (blockIdx !== 4 && cellIdx === 4); 
+            const textareaRef = useRef(null);
+
+            // Textarea 자동 높이 조절
+            useEffect(() => {
+                if (!isViewMode && textareaRef.current) {
+                    textareaRef.current.style.height = 'auto';
+                    textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+                }
+            }, [value, isViewMode]);
+
+            // 기본 스타일
+            let wrapperClass = "relative w-full h-full flex items-center justify-center p-0.5 transition-all duration-200 ";
+            let textBaseStyle = "w-full text-center break-words whitespace-pre-wrap outline-none ";
+
+            // 디자인 로직
+            if (blockIdx === 4) {
+                if (cellIdx === 4) { // 핵심 목표
+                    wrapperClass += "bg-white "; 
+                    textBaseStyle += "text-black font-black text-lg md:text-2xl drop-shadow-sm "; 
+                    
+                    // [중요 수정] PDF 저장(ViewMode) 시 자간/기울임 제거하여 깨짐 방지
+                    if (isViewMode) {
+                        textBaseStyle += "font-serif-title not-italic tracking-normal leading-normal ";
+                    } else {
+                        textBaseStyle += "font-sans italic tracking-tighter leading-tight ";
+                    }
+
+                } else { // 중앙 소주제
+                    const theme = posterColors[cellIdx];
+                    wrapperClass += theme.bg + " ";
+                    textBaseStyle += theme.text + " font-bold text-sm md:text-base font-sans leading-snug ";
+                }
+            } else {
+                if (cellIdx === 4) { // 외곽 블록 주제
+                    const theme = posterColors[blockIdx];
+                    wrapperClass += theme.bg + " border-2 border-black shadow-[2px_2px_0px_black] ";
+                    textBaseStyle += theme.text + " font-bold text-sm md:text-base font-sans leading-snug ";
+                } else { // 외곽 블록 실천 계획
+                    wrapperClass += "bg-white border border-slate-200 hover:bg-slate-50 ";
+                    textBaseStyle += "text-slate-800 font-medium text-[10px] md:text-xs tracking-tight px-0.5 font-sans leading-relaxed ";
+                }
+            }
+
+            return (
+                <div className={wrapperClass} onClick={() => !isReadOnly && !isViewMode && textareaRef.current?.focus()}>
+                    {/* 뷰 모드(PDF)일 때: Div로 렌더링 (안전한 텍스트 캡처) */}
+                    {isViewMode ? (
+                        <div className={`${textBaseStyle} flex items-center justify-center h-full pointer-events-none`}>
+                            {value}
+                        </div>
+                    ) : (
+                        /* 편집 모드일 때: Textarea로 렌더링 (입력 가능) */
+                        <textarea
+                            ref={textareaRef}
+                            className={`${textBaseStyle} bg-transparent resize-none overflow-hidden h-full flex items-center justify-center`}
+                            value={value}
+                            placeholder={isMainCenter ? "GOAL" : ""}
+                            onChange={(e) => !isReadOnly && updateGrid(blockIdx, cellIdx, e.target.value)}
+                            readOnly={isReadOnly}
+                            tabIndex={isReadOnly ? -1 : 0}
+                            rows={1}
+                            maxLength={100}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const Block = ({ blockIndex, grid, updateGrid, isViewMode }) => {
+            const blockData = grid[blockIndex];
+            const isCenterBlock = blockIndex === 4;
+
+            return (
+                <div className={`
+                    grid grid-cols-3 grid-rows-3 gap-[2px] w-full h-full p-[2px] bg-slate-100
+                    ${isCenterBlock ? 'border-4 border-black bg-black gap-[4px] p-[4px]' : 'border border-slate-300'}
+                `}>
+                    {blockData.map((cellValue, cellIndex) => (
+                        <Cell 
+                            key={`${blockIndex}-${cellIndex}`}
+                            blockIdx={blockIndex}
+                            cellIdx={cellIndex}
+                            value={cellValue}
+                            isCenterOfBlock={cellIndex === 4}
+                            isMainCenter={blockIndex === 4 && cellIndex === 4}
+                            updateGrid={updateGrid}
+                            isViewMode={isViewMode}
+                        />
+                    ))}
+                </div>
+            );
+        };
+
+        const MandalatApp = () => {
+            const [grid, setGrid] = useState(() => {
+                const saved = localStorage.getItem('mandalat_2026_poster_final_v3'); 
+                if (saved) return JSON.parse(saved);
+                return Array(9).fill(null).map(() => Array(9).fill(''));
+            });
+
+            const [mainGoal, setMainGoal] = useState(() => {
+                return localStorage.getItem('mandalat_main_goal_poster_final_v3') || '2026\nMY UNIVERSE';
+            });
+
+            const [isViewMode, setIsViewMode] = useState(false);
+            const [isDownloading, setIsDownloading] = useState(false);
+            const posterRef = useRef(null);
+
+            useEffect(() => {
+                localStorage.setItem('mandalat_2026_poster_final_v3', JSON.stringify(grid));
+                localStorage.setItem('mandalat_main_goal_poster_final_v3', mainGoal);
+            }, [grid, mainGoal]);
+
+            const updateGrid = (blockIndex, cellIndex, value) => {
+                const newGrid = [...grid];
+                newGrid[blockIndex] = [...newGrid[blockIndex]];
+                newGrid[blockIndex][cellIndex] = value;
+                
+                if (blockIndex === 4) {
+                    if (cellIndex !== 4) {
+                        newGrid[cellIndex][4] = value;
+                    }
+                }
+                setGrid(newGrid);
+            };
+
+            const handleMainGoalChange = (e) => {
+                setMainGoal(e.target.value);
+                const newGrid = [...grid];
+                newGrid[4][4] = e.target.value;
+                setGrid(newGrid);
+            };
+
+            const handleReset = () => {
+                if (window.confirm('새 종이를 꺼낼까요? (내용이 초기화됩니다)')) {
+                    setGrid(Array(9).fill(null).map(() => Array(9).fill('')));
+                    setMainGoal('2026\nMY UNIVERSE');
+                }
+            };
+
+            // --- PDF 다운로드 핸들러 (최종 수정: 폰트 로딩 대기 & 좌표 보정) ---
+            const handleDownloadPDF = async () => {
+                if (!posterRef.current || isDownloading) return;
+                
+                try {
+                    setIsDownloading(true);
+                    
+                    // 1. 폰트 로딩 대기 (중요)
+                    await document.fonts.ready;
+
+                    // 2. 뷰 모드 전환
+                    const wasViewMode = isViewMode;
+                    setIsViewMode(true);
+                    
+                    // 3. 렌더링 대기
+                    await new Promise(resolve => setTimeout(resolve, 800));
+
+                    // 4. 캡처
+                    const canvas = await window.html2canvas(posterRef.current, {
+                        scale: 3, 
+                        backgroundColor: '#ffffff',
+                        useCORS: true,
+                        logging: false,
+                        allowTaint: true,
+                        // 좌표 강제 설정 (잘림 방지)
+                        x: 0,
+                        y: 0,
+                        scrollX: 0,
+                        scrollY: 0,
+                        width: posterRef.current.offsetWidth,
+                        height: posterRef.current.offsetHeight
+                    });
+
+                    // 5. 복구
+                    if (!wasViewMode) {
+                        setIsViewMode(false);
+                    }
+
+                    // 6. 저장
+                    const imgData = canvas.toDataURL('image/png');
+                    const { jsPDF } = window.jspdf;
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = pdf.internal.pageSize.getHeight();
+                    const imgWidth = canvas.width;
+                    const imgHeight = canvas.height;
+                    
+                    const ratio = pdfWidth / imgWidth;
+                    const finalHeight = imgHeight * ratio;
+                    const yPosition = (pdfHeight - finalHeight) / 2;
+
+                    pdf.addImage(imgData, 'PNG', 0, yPosition > 0 ? yPosition : 0, pdfWidth, finalHeight);
+                    pdf.save('2026_Mandalat_Goals.pdf');
+
+                } catch (error) {
+                    console.error("PDF 실패:", error);
+                    alert("PDF 저장 오류. 다시 시도해주세요.");
+                } finally {
+                    setIsDownloading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-[#E5E5E5] text-black font-sans flex flex-col items-center py-8 px-2 md:py-12 overflow-y-auto w-full">
+                
+                {/* 배경 노이즈 */}
+                <div className="fixed inset-0 pointer-events-none opacity-[0.05] z-0" 
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
+                </div>
+
+                {/* --- POSTER FRAME --- */}
+                <div 
+                    ref={posterRef}
+                    className={`
+                        relative bg-white w-full max-w-[1000px] shadow-[0_20px_50px_rgba(0,0,0,0.3)] 
+                        transition-transform duration-500 z-10 flex flex-col
+                        ${isViewMode ? 'scale-100' : 'scale-[0.98]'}
+                    `}
+                >
+                    
+                    {/* 상단 장식 테이프 */}
+                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-48 h-12 bg-[#FFD600] rotate-[-2deg] shadow-md z-20 opacity-80 pointer-events-none"></div>
+
+                    {/* 1. Header */}
+                    <header className="pt-12 pb-6 px-6 md:px-10 border-b-4 border-black flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white">
+                    <div className="flex-1">
+                        <div className="inline-block bg-black text-white text-xs font-bold px-2 py-0.5 mb-2 transform -rotate-2">
+                        PLANNER NO. 2026
+                        </div>
+                        {/* 타이틀: PDF 저장 시 자간(tracking) 및 기울임(italic) 제거하여 깨짐 방지 */}
+                        <h1 className={`text-5xl md:text-7xl font-black leading-[0.85] font-serif-title ${isViewMode ? 'not-italic tracking-normal' : 'italic tracking-tighter'}`}>
+                        GRAPHIC<br/>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF0080] to-[#FF4D00] pr-4 inline-block">MANDALAT</span>
+                        </h1>
+                    </div>
+                    
+                    <div className="flex flex-col items-end gap-2 w-full md:w-auto">
+                        <div className="relative group w-full">
+                            {/* 메인 타이틀: 뷰 모드일 땐 Div로 표시 */}
+                            {isViewMode ? (
+                                <div className="text-right text-2xl md:text-3xl font-bold border-b-2 border-transparent font-serif-title min-w-[200px] whitespace-pre-wrap not-italic tracking-normal">
+                                    {mainGoal}
+                                </div>
+                            ) : (
+                                <textarea 
+                                    value={mainGoal}
+                                    onChange={handleMainGoalChange}
+                                    className="text-right text-2xl md:text-3xl font-bold bg-transparent outline-none w-full min-w-[200px] border-b-2 border-black focus:border-[#FF0080] transition-colors resize-none overflow-hidden placeholder-slate-300 font-serif-title italic tracking-tighter"
+                                    rows={1}
+                                    style={{height: 'auto'}}
+                                />
+                            )}
+                            <Star className="absolute -top-3 -right-3 text-[#FF0080] fill-[#FF0080] w-6 h-6 animate-pulse" />
+                        </div>
+                        
+                        {/* Controls (PDF 캡처 시 무시됨) */}
+                        <div 
+                            className="flex gap-2 mt-2" 
+                            data-html2canvas-ignore="true" 
+                        >
+                            <button 
+                                onClick={handleDownloadPDF} 
+                                disabled={isDownloading}
+                                title="PDF 저장"
+                                className="p-2 border-2 border-black bg-white hover:bg-black hover:text-white transition-all rounded-none flex items-center gap-1 font-bold text-xs"
+                            >
+                                {isDownloading ? <span className="animate-spin">⏳</span> : <Download size={18}/>}
+                                <span className="hidden md:inline">PDF</span>
+                            </button>
+
+                            <button onClick={() => setIsViewMode(!isViewMode)} className="p-2 border-2 border-black hover:bg-black hover:text-white transition-all rounded-none">
+                            {isViewMode ? <LayoutTemplate size={18}/> : <ScanLine size={18}/>}
+                            </button>
+                            <button onClick={handleReset} className="p-2 border-2 border-black hover:bg-[#FF0080] hover:text-white hover:border-[#FF0080] transition-all rounded-none">
+                            <Trash2 size={18}/>
+                            </button>
+                        </div>
+                    </div>
+                    </header>
+
+                    {/* 2. Main Content */}
+                    <main className="p-4 md:p-8 bg-[#f4f4f0] relative">
+                    <div className="absolute top-4 left-4 w-4 h-4 rounded-full border-2 border-black bg-[#00FF94]"></div>
+                    <div className="absolute bottom-4 right-4 text-6xl font-black text-slate-200 select-none z-0">2026</div>
+                    
+                    <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 aspect-square max-w-[900px] mx-auto">
+                        {Array.from({ length: 9 }).map((_, i) => (
+                        <div key={i} className={`
+                            relative shadow-[4px_4px_0px_rgba(0,0,0,0.15)] bg-white
+                            ${i === 4 ? 'z-20 scale-105 shadow-[8px_8px_0px_rgba(0,0,0,0.2)]' : 'z-10'}
+                            border-2 border-black transition-transform hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(0,0,0,0.2)]
+                        `}>
+                            <Block 
+                                blockIndex={i} 
+                                grid={grid} 
+                                updateGrid={updateGrid} 
+                                isViewMode={isViewMode}
+                            />
+                            
+                            {!isViewMode && i !== 4 && (
+                            <div className="absolute -top-2 -left-2 bg-black text-white text-[10px] font-bold px-1.5 py-0.5 transform -rotate-6">
+                                0{i+1}
+                            </div>
+                            )}
+                        </div>
+                        ))}
+                    </div>
+                    </main>
+
+                    {/* 3. Footer */}
+                    <footer className="bg-white border-t-4 border-black p-4 md:p-6 flex justify-between items-center text-xs font-mono uppercase tracking-widest">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                        <Zap size={14} className="fill-black"/>
+                        <span>Design by You</span>
+                        </div>
+                        <span className="text-slate-400">Printed in Seoul</span>
+                    </div>
+                    
+                    <div className="flex flex-col items-end">
+                        <div className="h-8 flex gap-[2px] items-end opacity-80">
+                        {[...Array(20)].map((_,i) => (
+                            <div key={i} className="bg-black w-[2px]" style={{height: Math.random() > 0.5 ? '100%' : '70%', width: Math.random() * 3 + 1 + 'px'}}></div>
+                        ))}
+                        </div>
+                        <span className="mt-1">880-2026-GOAL</span>
+                    </div>
+                    </footer>
+
+                </div>
+                
+                {/* Mobile Hint (PDF 캡처 제외) */}
+                {!isViewMode && (
+                    <div data-html2canvas-ignore="true" className="mt-6 flex items-center gap-2 text-slate-500 text-xs font-mono bg-white px-3 py-1 rounded-full border border-slate-300">
+                    <MousePointer2 size={12} />
+                    <span>Click cells to edit • Auto-save on</span>
+                    </div>
+                )}
+
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<MandalatApp />);
+    </script>
+</body>
+</html>
